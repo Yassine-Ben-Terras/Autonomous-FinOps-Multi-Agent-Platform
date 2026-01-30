@@ -63,7 +63,7 @@ open http://localhost:8000/docs
 
 ---
 
-## 🏗️ Architecture
+##  Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -142,7 +142,7 @@ cloudsense/
 
 ---
 
-## 🤖 Phase 2 — Agent Engine
+##  Phase 2 — Agent Engine
 
 The Agent Engine is the core intelligence layer of CloudSense. It uses a **LangGraph supervisor** to orchestrate specialist cost analysis agents across all three clouds.
 
@@ -178,7 +178,7 @@ The Agent Engine is the core intelligence layer of CloudSense. It uses a **LangG
 
 ---
 
-## 🔒 Security
+##  Security
 
 - All cloud connectors are **read-only** by default
 - Credentials are never stored in code — use environment variables or Vault
