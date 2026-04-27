@@ -1,0 +1,34 @@
+version: 2
+
+sources:
+  - name: focus
+    database: focus
+    schema: focus
+    description: "Raw FOCUS 1.0 billing data ingested from cloud providers"
+    tables:
+      - name: billing
+        description: >
+          Main billing fact table. One row per billing line item, normalised to
+          the FinOps FOCUS 1.0 specification. Ingested via the Kafka consumer
+          or directly from the Celery ingestion worker.
+        columns:
+          - name: provider_name
+            description: "Cloud provider: aws | azure | gcp"
+            tests:
+              - not_null
+              - accepted_values:
+                  values: ['aws', 'azure', 'gcp']
+          - name: billing_account_id
+            description: "AWS account ID / Azure subscription ID / GCP billing account ID"
+            tests:
+              - not_null
+          - name: effective_cost
+            description: "Cost after discounts — primary cost dimension for analysis"
+            tests:
+              - not_null
+          - name: charge_period_start
+            tests:
+              - not_null
+          - name: service_name
+            tests:
+              - not_null

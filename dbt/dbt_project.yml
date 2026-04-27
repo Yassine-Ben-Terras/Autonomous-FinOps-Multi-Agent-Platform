@@ -1,0 +1,30 @@
+name: 'cloudsense'
+version: '1.0.0'
+config-version: 2
+
+profile: 'cloudsense'
+
+model-paths:      ["models"]
+analysis-paths:   ["analyses"]
+test-paths:       ["tests"]
+seed-paths:       ["seeds"]
+macro-paths:      ["macros"]
+snapshot-paths:   ["snapshots"]
+
+target-path:  "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  cloudsense:
+    staging:
+      +materialized: incremental
+      +schema: staging
+      +tags: ["staging"]
+    mart:
+      +materialized: incremental
+      +schema: mart
+      +tags: ["mart"]
+
+vars:
+  # Default lookback window for incremental models
+  start_date: "2024-01-01"
