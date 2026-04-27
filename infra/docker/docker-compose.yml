@@ -1,0 +1,226 @@
+# ============================================================
+# CloudSense — Docker Compose (Development / Quickstart)
+# ============================================================
+# Kafka runs in KRaft mode — NO ZooKeeper container needed.
+# Start everything with: docker compose up -d
+# ============================================================
+
+services:
+
+  # ── Kafka KRaft (single-node for dev) ──────────────────────
+  # Production: use the Helm chart which runs 3 brokers + 3 dedicated controllers
+  kafka:
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: cloudsense-kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"    # client listener
+      - "9093:9093"    # controller listener (internal)
+      - "9101:9101"    # JMX metrics
+    environment:
+      # ── KRaft identity ───────────────────────────────────────
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+
+      # ── Listeners ────────────────────────────────────────────
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+
+      # ── Storage ──────────────────────────────────────────────
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+
+      # ── Replication (relaxed for single-node dev) ────────────
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+      # ── Retention ────────────────────────────────────────────
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+
+      # ── JMX metrics ──────────────────────────────────────────
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+
+      # KRaft requires a cluster ID — generate once with:
+      # docker run --rm confluentinc/cp-kafka:7.7.0 kafka-storage random-uuid
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── Kafka UI (Provectus) — topic browser ───────────────────
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: cloudsense-kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "cloudsense-local"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── ClickHouse — OLAP billing store ───────────────────────
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.5
+    container_name: cloudsense-clickhouse
+    ports:
+      - "8123:8123"    # HTTP interface (used by clickhouse-connect)
+      - "9000:9000"    # Native protocol (used by clickhouse-driver)
+    environment:
+      CLICKHOUSE_DB: focus
+      CLICKHOUSE_USER: cloudsense
+      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:-dev_password_change_me}"
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./infra/clickhouse:/docker-entrypoint-initdb.d:ro   # auto-runs DDL on first start
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ── PostgreSQL — metadata, users, approvals ────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: cloudsense-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB:       cloudsense
+      POSTGRES_USER:     cloudsense
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-dev_password_change_me}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cloudsense"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Redis — cache, queues, agent short-term memory ────────
+  redis:
+    image: redis:7.2-alpine
+    container_name: cloudsense-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass "${REDIS_PASSWORD:-dev_password_change_me}" --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── CloudSense API ────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+      target: development
+    container_name: cloudsense-api
+    ports:
+      - "8000:8000"
+    environment:
+      ENV:                     development
+      CLICKHOUSE_HOST:         clickhouse
+      CLICKHOUSE_PORT:         8123
+      CLICKHOUSE_DB:           focus
+      CLICKHOUSE_USER:         cloudsense
+      CLICKHOUSE_PASSWORD:     "${CLICKHOUSE_PASSWORD:-dev_password_change_me}"
+      POSTGRES_DSN:            "postgresql+asyncpg://cloudsense:${POSTGRES_PASSWORD:-dev_password_change_me}@postgres:5432/cloudsense"
+      REDIS_URL:               "redis://:${REDIS_PASSWORD:-dev_password_change_me}@redis:6379/0"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SECRET_KEY:              "${SECRET_KEY:-dev_secret_key_min_32_chars_change_me}"
+    volumes:
+      - ./:/app                # hot-reload in dev
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Ingestion worker (Celery) ─────────────────────────────
+  ingestion-worker:
+    build:
+      context: .
+      dockerfile: services/ingestion/Dockerfile
+      target: development
+    container_name: cloudsense-ingestion
+    command: celery -A services.ingestion.worker worker --loglevel=info --concurrency=4 -Q billing_ingestion
+    environment:
+      ENV:                     development
+      CLICKHOUSE_HOST:         clickhouse
+      CLICKHOUSE_PORT:         8123
+      CLICKHOUSE_USER:         cloudsense
+      CLICKHOUSE_PASSWORD:     "${CLICKHOUSE_PASSWORD:-dev_password_change_me}"
+      REDIS_URL:               "redis://:${REDIS_PASSWORD:-dev_password_change_me}@redis:6379/0"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    volumes:
+      - ./:/app
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # ── Grafana — observability dashboards ────────────────────
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: cloudsense-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_PASSWORD:-admin}"
+      GF_INSTALL_PLUGINS: "grafana-clickhouse-datasource"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - clickhouse
+    restart: unless-stopped
+
+volumes:
+  kafka_data:
+  clickhouse_data:
+  postgres_data:
+  redis_data:
+  grafana_data:
+
+networks:
+  default:
+    name: cloudsense-network
