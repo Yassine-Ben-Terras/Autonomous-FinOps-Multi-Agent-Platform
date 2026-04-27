@@ -29,7 +29,7 @@ CloudSense is an open-source, production-grade FinOps platform that:
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/your-org/cloudsense && cd cloudsense
+git clone https://github.com/Yassine-Ben-Terras/Autonomous-FinOps-Multi-Agent-Platform.git && cd cloudsense
 
 # 2. Copy the example environment file
 cp .env.example .env
