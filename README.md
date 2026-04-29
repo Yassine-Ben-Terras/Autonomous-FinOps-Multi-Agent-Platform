@@ -21,7 +21,7 @@ CloudSense is an open-source, production-grade FinOps platform that:
 
 ---
 
-## 🚀 Quickstart (5 minutes)
+## 🚀 Quickstart
 
 ### Prerequisites
 - Docker & Docker Compose
@@ -75,18 +75,6 @@ open http://localhost:3001   # admin / admin
 │  ClickHouse · PostgreSQL · Kafka KRaft · Redis · MinIO          │
 └─────────────────────────────────────────────────────────────────┘
 ```
-
-### Why Kafka KRaft (no ZooKeeper)?
-
-CloudSense uses **Kafka 3.7+ in KRaft mode** — the ZooKeeper-free architecture introduced by [KIP-500](https://cwiki.apache.org/confluence/display/KAFKA/KIP-500%3A+Replace+ZooKeeper+with+a+Self-Managed+Metadata+Quorum).
-
-Benefits:
-- ✅ **Simpler ops** — one fewer system to manage, monitor, and scale
-- ✅ **Faster recovery** — no ZooKeeper lag on broker failover
-- ✅ **More partitions** — KRaft scales to millions of partitions vs ZooKeeper's ~200k limit
-- ✅ **Production-ready** — Confluent marked KRaft GA in Kafka 3.3
-
----
 
 ## 📁 Project Structure
 
@@ -162,9 +150,6 @@ Interactive docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
 
-## 🤝 Contributing
-
-PRs are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## 📄 License
 
