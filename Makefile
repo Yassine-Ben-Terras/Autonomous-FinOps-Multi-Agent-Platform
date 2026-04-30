@@ -1,147 +1,114 @@
-# ============================================================
-# CloudSense — Makefile
-# ============================================================
-# make up          Start full dev stack (Docker Compose)
-# make down        Stop all services
-# make test        Run unit tests
-# make test-int    Run integration tests (requires running services)
-# make lint        Run ruff + mypy
-# make migrate     Run Alembic migrations
-# make ch-init     Apply ClickHouse DDL
-# make topics      Create Kafka topics (KRaft, no ZooKeeper)
-# make scan        Trigger AWS ingestion (requires AWS_ACCOUNT_ID env)
-# make logs        Tail API logs
-# ============================================================
+# ═══════════════════════════════════════════════════════════════════════════════
+# CloudSense — Developer Makefile
+# ═══════════════════════════════════════════════════════════════════════════════
 
-.DEFAULT_GOAL := help
-COMPOSE        = docker compose -f infra/docker/docker-compose.yml
-KAFKA_BROKER   ?= localhost:9092
-API_URL        ?= http://localhost:8000
+.PHONY: help install dev docker-up docker-down test lint format migrate seed clean build deploy
 
-.PHONY: help up down restart logs lint test test-int \
-        ch-init topics migrate scan clean
-
+# ── Default ────────────────────────────────────────────────────────────────────
 help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-# ── Docker Compose ────────────────────────────────────────────
-up: ## Start all services in the background
-	$(COMPOSE) up -d
-	@echo ""
-	@echo "  Services starting — wait ~30s for Kafka KRaft to be ready"
-	@echo "  API:       $(API_URL)/docs"
-	@echo "  Kafka UI:  http://localhost:8080"
-	@echo "  Grafana:   http://localhost:3001  (admin/admin)"
+# ── Local Development ──────────────────────────────────────────────────────────
+install: ## Install production dependencies
+	pip install -r requirements.txt
 
-down: ## Stop all services
-	$(COMPOSE) down
+dev: ## Install development dependencies
+	pip install -r requirements-dev.txt
+	pre-commit install
 
-restart: ## Restart the API service only (faster than full down/up)
-	$(COMPOSE) restart api
+docker-up: ## Start infrastructure services (ClickHouse, PostgreSQL, Kafka, Redis)
+	docker compose -f infra/docker/docker-compose.yml up -d
+	@echo "Waiting for services..."
+	@sleep 15
+	@docker compose -f infra/docker/docker-compose.yml ps
 
-logs: ## Tail API logs
-	$(COMPOSE) logs -f api
+docker-down: ## Stop infrastructure services
+	docker compose -f infra/docker/docker-compose.yml down
 
-logs-all: ## Tail all service logs
-	$(COMPOSE) logs -f
+docker-logs: ## Show infrastructure logs
+	docker compose -f infra/docker/docker-compose.yml logs -f
 
-status: ## Show service health
-	$(COMPOSE) ps
+# ── Database ───────────────────────────────────────────────────────────────────
+migrate: ## Run ClickHouse migrations
+	@echo "Applying ClickHouse migrations..."
+	@docker exec -i cloudsense-clickhouse clickhouse-client -d cloudsense < infra/clickhouse/001_focus_billing.sql
+	@echo "Migrations applied."
 
-# ── Initialisation ────────────────────────────────────────────
-ch-init: ## Apply ClickHouse DDL (focus schema + tables + MVs)
-	@echo "Applying ClickHouse DDL..."
-	docker exec cloudsense-clickhouse \
-		clickhouse-client \
-		--user cloudsense \
-		--password "$${CLICKHOUSE_PASSWORD:-dev_password_change_me}" \
-		--multiquery < infra/clickhouse/001_focus_billing.sql
-	@echo "Done."
+seed: ## Seed test data
+	@echo "Seeding test data..."
+	python scripts/seed_test_data.py
 
-topics: ## Create Kafka topics (KRaft broker must be running)
-	@echo "Creating Kafka topics (KRaft — no ZooKeeper)..."
-	python -c "
-from cloudsense.infra.kafka.producer import FocusBillingProducer, KafkaConfig
-p = FocusBillingProducer(KafkaConfig(bootstrap_servers='$(KAFKA_BROKER)'))
-p.ensure_topics_exist()
-print('Topics created successfully')
-"
+# ── Testing ────────────────────────────────────────────────────────────────────
+test: ## Run all tests
+	pytest tests/ -v --tb=short
 
-migrate: ## Run Alembic database migrations
-	alembic -c services/api/db/alembic.ini upgrade head
+test-cov: ## Run tests with coverage
+	pytest tests/ -v --cov=. --cov-report=term-missing --cov-report=html
 
-migrate-generate: ## Generate a new Alembic migration
-	@read -p "Migration name: " name; \
-	alembic -c services/api/db/alembic.ini revision --autogenerate -m "$$name"
+test-unit: ## Run unit tests only
+	pytest tests/unit/ -v
 
-# ── Development ───────────────────────────────────────────────
-install: ## Install Python dependencies (dev mode)
-	pip install poetry==1.8.3
-	poetry install
+test-integration: ## Run integration tests
+	pytest tests/integration/ -v
 
-lint: ## Run ruff lint + format check + mypy
-	ruff check .
-	ruff format --check .
-	mypy cloudsense/ services/ --ignore-missing-imports
+# ── Code Quality ───────────────────────────────────────────────────────────────
+lint: ## Run linter (ruff)
+	ruff check sdk/ connectors/ agents/ services/ recommendations/ policy/ bot/ observability/ tests/
 
-lint-fix: ## Auto-fix lint issues
-	ruff check . --fix
-	ruff format .
+lint-fix: ## Run linter with auto-fix
+	ruff check --fix sdk/ connectors/ agents/ services/ recommendations/ policy/ bot/ observability/ tests/
 
-# ── Tests ──────────────────────────────────────────────────────
-test: ## Run unit tests with coverage
-	pytest tests/unit/ -v \
-		--cov=cloudsense \
-		--cov=services \
-		--cov-report=term-missing \
-		--cov-fail-under=70
+format: ## Format code (ruff format)
+	ruff format sdk/ connectors/ agents/ services/ recommendations/ policy/ bot/ observability/ tests/
 
-test-int: ## Run integration tests (requires running services)
-	ENV=test \
-	KAFKA_BOOTSTRAP_SERVERS=$(KAFKA_BROKER) \
-	CLICKHOUSE_HOST=localhost \
-	pytest tests/integration/ -v --timeout=60
+typecheck: ## Run type checker (mypy)
+	mypy sdk/ connectors/ agents/ services/ --ignore-missing-imports
 
-test-all: test test-int ## Run all tests
+precommit: ## Run all pre-commit hooks
+	pre-commit run --all-files
 
-# ── CLI shortcuts ─────────────────────────────────────────────
-scan: ## Trigger AWS ingestion (set AWS_ACCOUNT_ID in env)
-	python -m services.cli.main scan \
-		--provider aws \
-		--connector-id "$${AWS_ACCOUNT_ID}" \
-		--api-url $(API_URL)
+# ── API ────────────────────────────────────────────────────────────────────────
+run: ## Start the API server
+	uvicorn services.api.main:app --host 0.0.0.0 --port 8000 --reload
 
-overview: ## Show cost overview in terminal
-	python -m services.cli.main costs overview \
-		--days 30 \
-		--api-url $(API_URL)
+run-prod: ## Start the API server (production)
+	uvicorn services.api.main:app --host 0.0.0.0 --port 8000 --workers 4
 
-top-services: ## Show top 10 services by cost
-	python -m services.cli.main costs by-service \
-		--top 10 \
-		--api-url $(API_URL)
+# ── Agents ─────────────────────────────────────────────────────────────────────
+agent-analyze: ## Trigger a cross-cloud analysis via API
+	curl -X POST http://localhost:8000/api/v1/agents/analyze \
+		-H "Content-Type: application/json" \
+		-d '{"goal": "Find all cost optimization opportunities", "providers": ["aws", "azure", "gcp"]}'
 
-# ── Kafka helpers ─────────────────────────────────────────────
-kafka-list-topics: ## List all Kafka topics
-	docker exec cloudsense-kafka \
-		kafka-topics --bootstrap-server localhost:9092 --list
+agent-status: ## Get analysis status (set SESSION_ID)
+	@test -n "$(SESSION_ID)" || (echo "Usage: make agent-status SESSION_ID=xxx"; exit 1)
+	curl http://localhost:8000/api/v1/agents/status/$(SESSION_ID)
 
-kafka-describe-topic: ## Describe the billing topic
-	docker exec cloudsense-kafka \
-		kafka-topics --bootstrap-server localhost:9092 \
-		--describe --topic focus.billing.raw
+# ── Build & Deploy ─────────────────────────────────────────────────────────────
+build: ## Build Docker image
+	docker build -t cloudsense/api:0.2.0 .
 
-kafka-consumer-groups: ## List consumer groups (KRaft — no ZooKeeper command needed)
-	docker exec cloudsense-kafka \
-		kafka-consumer-groups --bootstrap-server localhost:9092 --list
+docker-push: ## Push Docker image
+	docker push cloudsense/api:0.2.0
 
-# ── Cleanup ────────────────────────────────────────────────────
-clean: ## Remove all Docker volumes (DELETES ALL DATA)
-	@read -p "This deletes all data. Are you sure? [y/N] " confirm; \
-	[ "$$confirm" = "y" ] && $(COMPOSE) down -v || echo "Aborted."
+helm-install: ## Install Helm chart
+	helm upgrade --install cloudsense infra/helm/cloudsense/ \
+		--namespace cloudsense \
+		--create-namespace \
+		--values infra/helm/cloudsense/values.yaml
 
-clean-cache: ## Remove Python caches
-	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null; true
-	find . -type f -name "*.pyc" -delete 2>/dev/null; true
-	rm -rf .pytest_cache .mypy_cache .ruff_cache target/
+helm-uninstall: ## Uninstall Helm chart
+	helm uninstall cloudsense --namespace cloudsense
+
+# ── Utilities ──────────────────────────────────────────────────────────────────
+clean: ## Clean up generated files
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	find . -type f -name "*.pyc" -delete
+	find . -type f -name ".coverage" -delete
+	rm -rf htmlcov/ .pytest_cache/ .mypy_cache/
+
+api-docs: ## Open API documentation
+	@echo "API docs: http://localhost:8000/docs"
+
+requirements-export: ## Export locked requirements
+	pip freeze > requirements.lock.txt
