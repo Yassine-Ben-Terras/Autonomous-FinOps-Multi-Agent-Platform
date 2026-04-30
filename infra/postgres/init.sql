@@ -275,3 +275,69 @@ CREATE OR REPLACE RULE audit_log_no_update AS
 
 CREATE OR REPLACE RULE audit_log_no_delete AS
     ON DELETE TO audit_log DO INSTEAD NOTHING;
+
+-- ── Phase 5.1: Multi-tenant Tables ───────────────────────────────────────────
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE IF NOT EXISTS tenants (
+    id                  TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    name                TEXT NOT NULL,
+    slug                TEXT NOT NULL UNIQUE,
+    plan                TEXT NOT NULL DEFAULT 'community'
+                            CHECK (plan IN ('community','enterprise')),
+    sso_enabled         BOOLEAN NOT NULL DEFAULT false,
+    sso_provider        TEXT CHECK (sso_provider IN ('saml','oidc')),
+    saml_metadata_url   TEXT,
+    oidc_issuer         TEXT,
+    oidc_client_id      TEXT,
+    oidc_client_secret  TEXT,
+    max_users           INTEGER NOT NULL DEFAULT 10,
+    is_active           BOOLEAN NOT NULL DEFAULT true,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS users (
+    id              TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    email           TEXT NOT NULL UNIQUE,
+    display_name    TEXT NOT NULL DEFAULT '',
+    password_hash   TEXT NOT NULL DEFAULT 'sso-provisioned',
+    mfa_enabled     BOOLEAN NOT NULL DEFAULT false,
+    is_active       BOOLEAN NOT NULL DEFAULT true,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS tenant_members (
+    id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    tenant_id   TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role        TEXT NOT NULL DEFAULT 'viewer'
+                    CHECK (role IN ('admin','engineer','viewer','billing')),
+    is_active   BOOLEAN NOT NULL DEFAULT true,
+    joined_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_login  TIMESTAMPTZ,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_members_tenant ON tenant_members (tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_tenant_members_user   ON tenant_members (user_id);
+
+-- Default dev tenant
+INSERT INTO tenants (id, name, slug, plan)
+VALUES ('dev-tenant', 'CloudSense Dev', 'dev', 'enterprise')
+ON CONFLICT (slug) DO NOTHING;
+
+INSERT INTO users (id, email, display_name, password_hash)
+VALUES (
+    'dev-admin-user',
+    'admin@cloudsense.local',
+    'CloudSense Admin',
+    crypt('ChangeMe123!', gen_salt('bf'))
+) ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO tenant_members (tenant_id, user_id, role)
+VALUES ('dev-tenant', 'dev-admin-user', 'admin')
+ON CONFLICT (tenant_id, user_id) DO NOTHING;
