@@ -24,7 +24,7 @@ CloudSense is an open-source, production-grade FinOps platform that:
 
 ---
 
-## 🚀 Quickstart
+##  Quickstart
 
 ### Prerequisites
 - Docker & Docker Compose
