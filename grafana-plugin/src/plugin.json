@@ -1,0 +1,106 @@
+{
+  "type": "datasource",
+  "name": "CloudSense FinOps",
+  "id": "cloudsense-finops-datasource",
+  "info": {
+    "description": "FOCUS 1.0-compliant FinOps datasource for CloudSense. Visualize cloud costs, savings potential, anomalies, and K8s allocation across AWS, Azure, and GCP — directly in Grafana.",
+    "author": {
+      "name": "CloudSense",
+      "url": "https://github.com/cloudsense/grafana-plugin"
+    },
+    "keywords": ["finops", "cloud cost", "aws", "azure", "gcp", "kubernetes", "focus"],
+    "logos": {
+      "small": "img/logo.svg",
+      "large": "img/logo_large.svg"
+    },
+    "links": [
+      {"name": "GitHub",        "url": "https://github.com/cloudsense/grafana-plugin"},
+      {"name": "Documentation", "url": "https://docs.cloudsense.io/grafana"},
+      {"name": "FinOps FOCUS",  "url": "https://focus.finops.org"}
+    ],
+    "screenshots": [],
+    "version": "1.0.0",
+    "updated": "2024-01-01"
+  },
+  "includes": [
+    {
+      "type": "dashboard",
+      "name": "CloudSense — Multi-Cloud Cost Overview",
+      "path": "dashboards/multi_cloud_cost.json",
+      "icon": "dashboard",
+      "description": "Total daily/monthly spend across AWS, Azure, and GCP with provider breakdown."
+    },
+    {
+      "type": "dashboard",
+      "name": "CloudSense — Cost Anomaly Detection",
+      "path": "dashboards/anomaly_detection.json",
+      "icon": "dashboard",
+      "description": "Real-time anomaly timeline with cost-spike annotations."
+    },
+    {
+      "type": "dashboard",
+      "name": "CloudSense — FinOps KPIs",
+      "path": "dashboards/finops_kpis.json",
+      "icon": "dashboard",
+      "description": "Unit economics, savings rate, tag compliance score, and commitment coverage."
+    }
+  ],
+  "dependencies": {
+    "grafanaDependency": ">=9.0.0",
+    "plugins": []
+  },
+  "backend": true,
+  "executable": "gpx_cloudsense_finops",
+  "routes": [
+    {
+      "path": "health",
+      "method": "GET",
+      "url": "{{ .JsonData.apiUrl }}/api/v1/exports/grafana/health",
+      "headers": [
+        { "name": "Authorization", "content": "Bearer {{ .SecureJsonData.apiToken }}" }
+      ]
+    },
+    {
+      "path": "search",
+      "method": "POST",
+      "url": "{{ .JsonData.apiUrl }}/api/v1/exports/grafana/search",
+      "headers": [
+        { "name": "Authorization", "content": "Bearer {{ .SecureJsonData.apiToken }}" }
+      ]
+    },
+    {
+      "path": "query",
+      "method": "POST",
+      "url": "{{ .JsonData.apiUrl }}/api/v1/exports/grafana/query",
+      "headers": [
+        { "name": "Authorization", "content": "Bearer {{ .SecureJsonData.apiToken }}" }
+      ]
+    },
+    {
+      "path": "annotations",
+      "method": "GET",
+      "url": "{{ .JsonData.apiUrl }}/api/v1/exports/grafana/annotations",
+      "headers": [
+        { "name": "Authorization", "content": "Bearer {{ .SecureJsonData.apiToken }}" }
+      ]
+    }
+  ],
+  "jsonData": {
+    "apiUrl": {
+      "label": "CloudSense API URL",
+      "description": "Base URL of your CloudSense instance (e.g. https://cloudsense.yourdomain.com)",
+      "required": true
+    },
+    "tenantSlug": {
+      "label": "Tenant Slug",
+      "description": "Your CloudSense tenant identifier",
+      "required": true
+    }
+  },
+  "secureJsonFields": {
+    "apiToken": {
+      "label": "API Token",
+      "description": "CloudSense JWT access token (generate from /auth/login)"
+    }
+  }
+}
