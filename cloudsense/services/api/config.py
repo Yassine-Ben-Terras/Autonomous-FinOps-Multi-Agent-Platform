@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     mlflow_experiment_name: str = "cloudsense-forecasting"
     opa_url: str = "http://localhost:8181/v1/data/cloudsense"
 
+    # Phase 5.1 — Multi-tenant & SSO
+    base_url: str = "http://localhost:8000"
+    jwt_algorithm: str = "HS256"
+    access_token_ttl: int = 3600
+    refresh_token_ttl: int = 2592000
+    saml_sp_entity_id: str = "urn:cloudsense:sp"
+    oidc_default_scopes: list[str] = ["openid", "email", "profile"]
     aws_access_key_id: SecretStr | None = None
     aws_secret_access_key: SecretStr | None = None
     aws_region: str = "us-east-1"
@@ -53,5 +60,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
-# Patch: add AWS / rollback fields used by action_agent if not present via env
