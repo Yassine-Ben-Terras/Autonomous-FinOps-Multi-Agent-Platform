@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     mlflow_experiment_name: str = "cloudsense-forecasting"
     opa_url: str = "http://localhost:8181/v1/data/cloudsense"
 
+    # Phase 5.2 — Datadog integration
+    datadog_api_key: SecretStr | None = None
+    datadog_app_key: SecretStr | None = None
+    datadog_site: str = "datadoghq.com"
+    grafana_url: str = "http://localhost:3000"
     # Phase 5.1 — Multi-tenant & SSO
     base_url: str = "http://localhost:8000"
     jwt_algorithm: str = "HS256"
