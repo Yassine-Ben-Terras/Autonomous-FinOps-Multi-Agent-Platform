@@ -1,17 +1,15 @@
 apiVersion: v2
 name: cloudsense
 description: CloudSense FinOps Multi-Agent Platform
-version: 0.2.0
-appVersion: "0.2.0"
 type: application
-keywords:
-  - finops
-  - cloud-cost
-  - multi-agent
-  - cost-optimization
-home: https://github.com/Yassine-Ben-Terras/Autonomous-FinOps-Multi-Agent-Platform
-sources:
-  - https://github.com/Yassine-Ben-Terras/Autonomous-FinOps-Multi-Agent-Platform
-maintainers:
-  - name: CloudSense Team
-dependencies: []
+version: 0.3.0
+appVersion: "0.3.0"
+dependencies:
+  - name: clickhouse
+    version: "4.0.x"
+    repository: https://charts.clickhouse.com
+    condition: clickhouse.enabled
+  - name: postgresql
+    version: "15.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
