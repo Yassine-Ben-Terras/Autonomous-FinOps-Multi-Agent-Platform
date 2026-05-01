@@ -1,76 +1,27 @@
-"""
-Unit tests for OPA policy engine.
-"""
-
-from __future__ import annotations
-
+"""Tests for OPA Policy Engine."""
 import pytest
+from cloudsense.agents.shared_types import CostInsight, InsightSeverity, InsightStatus
+from cloudsense.policy.engine import PolicyEngine
 
-from agents.shared_types import RecommendationCategory, RecommendationResult, RiskLevel
-from policy.engine import PolicyEngine
+@pytest.mark.asyncio
+async def test_policy_allows_investigate():
+    engine = PolicyEngine(opa_url="http://invalid:9999")
+    insight = CostInsight(
+        insight_id="test-1", agent="test", provider="aws",
+        severity=InsightSeverity.HIGH, title="Test",
+        description="Test", action_type="investigate", risk_level="low",
+        confidence_score=0.9)
+    result = await engine.evaluate(insight)
+    assert result["allowed"] is True
 
-
-class TestPolicyEngine:
-    """Test policy evaluation."""
-
-    @pytest.mark.asyncio
-    async def test_auto_approve_low_risk(self) -> None:
-        engine = PolicyEngine(opa_url="")  # Local mode
-        rec = RecommendationResult(
-            title="Tag compliance",
-            description="Fix tags",
-            category=RecommendationCategory.TAG_COMPLIANCE,
-            total_projected_monthly_savings=100.0,
-            risk_level=RiskLevel.LOW,
-        )
-        decision = await engine.evaluate_recommendation(rec, environment="development")
-        assert decision.allowed is True
-        assert "auto-approved" in decision.reason
-
-    @pytest.mark.asyncio
-    async def test_deny_production_idle_resource(self) -> None:
-        engine = PolicyEngine(opa_url="")
-        rec = RecommendationResult(
-            title="Stop idle EC2",
-            description="Stop instance",
-            category=RecommendationCategory.IDLE_RESOURCE,
-            total_projected_monthly_savings=500.0,
-            risk_level=RiskLevel.MEDIUM,
-            requires_approval=True,
-        )
-        decision = await engine.evaluate_recommendation(rec, environment="production")
-        assert decision.allowed is False
-        assert "approval" in decision.reason.lower()
-
-    @pytest.mark.asyncio
-    async def test_deny_high_spend(self) -> None:
-        engine = PolicyEngine(opa_url="")
-        rec = RecommendationResult(
-            title="Big savings",
-            description="Large change",
-            category=RecommendationCategory.IDLE_RESOURCE,
-            total_projected_monthly_savings=100000.0,
-            risk_level=RiskLevel.LOW,
-        )
-        decision = await engine.evaluate_recommendation(rec, environment="development")
-        assert decision.allowed is False
-        assert "50K" in decision.reason
-
-    @pytest.mark.asyncio
-    async def test_batch_evaluate(self) -> None:
-        engine = PolicyEngine(opa_url="")
-        recs = [
-            RecommendationResult(title="Low", description="d", category=RecommendationCategory.TAG_COMPLIANCE, total_projected_monthly_savings=50, risk_level=RiskLevel.LOW),
-            RecommendationResult(title="High", description="d", category=RecommendationCategory.IDLE_RESOURCE, total_projected_monthly_savings=5000, risk_level=RiskLevel.HIGH),
-        ]
-        decisions = await engine.batch_evaluate(recs, environment="staging")
-        assert len(decisions) == 2
-        # Low risk tag compliance should be auto-approved in staging
-        assert decisions[0].allowed is True
-
-    def test_get_policy_document(self) -> None:
-        engine = PolicyEngine(opa_url="")
-        doc = engine.get_policy_document()
-        assert "package cloudsense" in doc
-        assert "allow" in doc
-        assert "deny" in doc
+@pytest.mark.asyncio
+async def test_policy_denies_delete():
+    engine = PolicyEngine(opa_url="http://invalid:9999")
+    insight = CostInsight(
+        insight_id="test-2", agent="test", provider="aws",
+        severity=InsightSeverity.CRITICAL, title="Test",
+        description="Test", action_type="delete", risk_level="high",
+        confidence_score=0.9)
+    result = await engine.evaluate(insight)
+    assert result["allowed"] is False
+    assert "permanently blocked" in result["reason"]
