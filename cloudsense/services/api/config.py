@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     mlflow_experiment_name: str = "cloudsense-forecasting"
     opa_url: str = "http://localhost:8181/v1/data/cloudsense"
 
+    aws_access_key_id: SecretStr | None = None
+    aws_secret_access_key: SecretStr | None = None
+    aws_region: str = "us-east-1"
+    rollback_window_days: int = 7
+    auto_approve_non_production: bool = True
     @property
     def postgres_dsn(self) -> str:
         return f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password.get_secret_value()}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
@@ -48,3 +53,5 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+# Patch: add AWS / rollback fields used by action_agent if not present via env
