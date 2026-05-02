@@ -222,3 +222,56 @@ VALUES (
     'admin',
     crypt('ChangeMe123!', gen_salt('bf'))
 ) ON CONFLICT (email) DO NOTHING;
+
+-- ── Phase 4: Action Approvals ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS action_approvals (
+    id                  TEXT PRIMARY KEY,
+    recommendation_id   TEXT NOT NULL,
+    provider            TEXT NOT NULL,
+    environment         TEXT NOT NULL CHECK (environment IN ('development','staging','production')),
+    action_type         TEXT NOT NULL,
+    target_resource_id  TEXT NOT NULL,
+    parameters          JSONB NOT NULL DEFAULT '{}',
+    rollback_plan       JSONB NOT NULL DEFAULT '{}',
+    status              TEXT NOT NULL DEFAULT 'pending'
+                            CHECK (status IN ('pending','awaiting_approval','approved','rejected',
+                                              'executing','completed','failed','rolled_back')),
+    requested_by        TEXT NOT NULL,
+    approved_by         TEXT,
+    rejected_reason     TEXT,
+    executed_at         TIMESTAMPTZ,
+    expires_at          TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_action_approvals_status
+    ON action_approvals (status, environment, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_action_approvals_resource
+    ON action_approvals (target_resource_id);
+
+-- ── Phase 4: Audit Log (append-only, no UPDATE/DELETE) ────────────────────
+CREATE TABLE IF NOT EXISTS audit_log (
+    id            BIGSERIAL PRIMARY KEY,
+    event_type    TEXT        NOT NULL,
+    actor_id      TEXT,
+    resource_type TEXT        NOT NULL,
+    resource_id   TEXT        NOT NULL,
+    payload       JSONB       NOT NULL DEFAULT '{}',
+    occurred_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Partition by month for scalability
+CREATE INDEX IF NOT EXISTS idx_audit_log_resource
+    ON audit_log (resource_id, occurred_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_event_type
+    ON audit_log (event_type, occurred_at DESC);
+
+-- Prevent UPDATE / DELETE on audit_log (append-only rule)
+CREATE OR REPLACE RULE audit_log_no_update AS
+    ON UPDATE TO audit_log DO INSTEAD NOTHING;
+
+CREATE OR REPLACE RULE audit_log_no_delete AS
+    ON DELETE TO audit_log DO INSTEAD NOTHING;
