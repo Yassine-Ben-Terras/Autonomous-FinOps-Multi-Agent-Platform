@@ -263,8 +263,8 @@ The Helm chart includes:
 |-------|--------|--------------|
 | Phase 1 — Foundation | ✅ Complete | FOCUS schema, connectors, ClickHouse, REST API, Docker Compose |
 | Phase 2 — Agent Engine | ✅ Complete | LangGraph supervisor, 3 specialist agents, recommendation engine, OPA policies, Slack bot, observability, Helm charts |
-| Phase 3 — Forecasting | ⏳ Planned | Prophet-based 30/60/90-day projections, anomaly detection, budget alerts |
-| Phase 4 — Autonomous Actions | ⏳ Planned | Terraform execution, rollback registry, action agent |
+| Phase 3 — Forecasting | ✅ Complete  | Prophet-based 30/60/90-day projections, anomaly detection, budget alerts |
+| Phase 4 — Autonomous Actions | ✅ Complete  | Terraform execution, rollback registry, action agent |
 | Phase 5 — Enterprise | ⏳ Planned | SSO, multi-tenant, Grafana plugin, Python SDK |
 
 ---
