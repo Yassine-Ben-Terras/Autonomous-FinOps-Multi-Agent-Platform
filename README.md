@@ -52,7 +52,7 @@ curl -X POST http://localhost:8000/api/v1/ingestion/trigger \
 # 6. View the cost overview
 curl http://localhost:8000/api/v1/costs/overview
 
-# 7. Trigger an AI agent analysis (Phase 2)
+# 7. Trigger an AI agent analysis
 curl -X POST http://localhost:8000/api/v1/agents/analyze \
   -H "Content-Type: application/json" \
   -d '{"goal": "Find cost optimization opportunities", "providers": ["aws", "azure", "gcp"]}'
