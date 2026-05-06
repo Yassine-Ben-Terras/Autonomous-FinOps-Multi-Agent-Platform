@@ -52,7 +52,7 @@ curl -X POST http://localhost:8000/api/v1/ingestion/trigger \
 # 6. View the cost overview
 curl http://localhost:8000/api/v1/costs/overview
 
-# 7. Trigger an AI agent analysis
+# 7. Trigger an AI agent analysis (Phase 2)
 curl -X POST http://localhost:8000/api/v1/agents/analyze \
   -H "Content-Type: application/json" \
   -d '{"goal": "Find cost optimization opportunities", "providers": ["aws", "azure", "gcp"]}'
@@ -263,8 +263,8 @@ The Helm chart includes:
 |-------|--------|--------------|
 | Phase 1 — Foundation | ✅ Complete | FOCUS schema, connectors, ClickHouse, REST API, Docker Compose |
 | Phase 2 — Agent Engine | ✅ Complete | LangGraph supervisor, 3 specialist agents, recommendation engine, OPA policies, Slack bot, observability, Helm charts |
-| Phase 3 — Forecasting | ✅ Complete  | Prophet-based 30/60/90-day projections, anomaly detection, budget alerts |
-| Phase 4 — Autonomous Actions | ✅ Complete  | Terraform execution, rollback registry, action agent |
+| Phase 3 — Forecasting | ⏳ Planned | Prophet-based 30/60/90-day projections, anomaly detection, budget alerts |
+| Phase 4 — Autonomous Actions | ⏳ Planned | Terraform execution, rollback registry, action agent |
 | Phase 5 — Enterprise | ⏳ Planned | SSO, multi-tenant, Grafana plugin, Python SDK |
 
 ---
