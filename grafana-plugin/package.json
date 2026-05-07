@@ -1,0 +1,23 @@
+{
+  "name": "cloudsense-finops-datasource",
+  "version": "1.0.0",
+  "description": "FOCUS 1.0-compliant FinOps datasource for CloudSense. Visualize cloud costs, savings, anomalies, and K8s allocation across AWS, Azure, and GCP directly in Grafana.",
+  "scripts": {
+    "build": "grafana-toolkit plugin:build",
+    "test":  "grafana-toolkit plugin:test",
+    "dev":   "grafana-toolkit plugin:dev",
+    "sign":  "grafana-toolkit plugin:sign"
+  },
+  "dependencies": {
+    "@grafana/data":    "^10.0.0",
+    "@grafana/runtime": "^10.0.0",
+    "@grafana/ui":      "^10.0.0",
+    "react":            "^18.0.0",
+    "react-dom":        "^18.0.0"
+  },
+  "devDependencies": {
+    "@grafana/toolkit": "^10.0.0",
+    "@types/react":     "^18.0.0",
+    "typescript":       "^5.0.0"
+  }
+}
