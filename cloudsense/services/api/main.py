@@ -13,6 +13,8 @@ from cloudsense.services.api.routers.tags import router as tags_router
 from cloudsense.services.api.routers.auth import router as auth_router
 from cloudsense.services.api.routers.k8s import router as k8s_router
 from cloudsense.services.api.routers.exports import router as exports_router
+from cloudsense.sdk.marketplace import router as marketplace_router
+from cloudsense.services.api.routers.audit import router as audit_router
 from cloudsense.services.db.clickhouse import ClickHouseClient
 
 logger = structlog.get_logger()
@@ -76,7 +78,8 @@ def create_app() -> FastAPI:
             "phases": [
                 "1-Foundation", "2-Agents", "3-Forecasting",
                 "4-Actions", "5.1-MultiTenant-SSO-K8s",
-                "5.2-Grafana-Datadog-BI-Exporters"
+                "5.2-Grafana-Datadog-BI-Exporters",
+                "5.3-PluginSDK-Marketplace-AuditExporter"
             ]
         }
 
@@ -100,6 +103,9 @@ def create_app() -> FastAPI:
     app.include_router(k8s_router, prefix="/api/v1")
     # Phase 5.2
     app.include_router(exports_router, prefix="/api/v1")
+    # Phase 5.3
+    app.include_router(marketplace_router, prefix="/api/v1")
+    app.include_router(audit_router, prefix="/api/v1")
 
     return app
 
