@@ -1,0 +1,193 @@
+{
+  "title": "CloudSense — Multi-Cloud Cost Overview",
+  "description": "Real-time cloud cost intelligence from CloudSense FinOps platform. Tracks spend across AWS, Azure, and GCP with anomaly detection, savings potential, and budget alerts.",
+  "tags": ["cloudsense", "finops", "cloud-cost", "aws", "azure", "gcp"],
+  "template_variables": [
+    {
+      "name": "provider",
+      "prefix": "provider",
+      "default": "*",
+      "available_values": ["aws", "azure", "gcp"]
+    },
+    {
+      "name": "service",
+      "prefix": "service",
+      "default": "*"
+    },
+    {
+      "name": "region",
+      "prefix": "region",
+      "default": "*"
+    }
+  ],
+  "widgets": [
+    {
+      "id": 1,
+      "definition": {
+        "type": "query_value",
+        "title": "Total Daily Cost (All Clouds)",
+        "requests": [
+          {
+            "q": "sum:cloudsense.cost.daily{source:cloudsense,$provider,$service,$region}",
+            "aggregator": "sum"
+          }
+        ],
+        "autoscale": true,
+        "precision": 2,
+        "unit": "dollar",
+        "time": { "live_span": "1d" }
+      },
+      "layout": { "x": 0, "y": 0, "width": 3, "height": 2 }
+    },
+    {
+      "id": 2,
+      "definition": {
+        "type": "query_value",
+        "title": "Monthly Cost (MTD)",
+        "requests": [
+          {
+            "q": "sum:cloudsense.cost.daily{source:cloudsense,$provider,$service,$region}.rollup(sum, 2592000)",
+            "aggregator": "sum"
+          }
+        ],
+        "autoscale": true,
+        "precision": 2,
+        "unit": "dollar",
+        "time": { "live_span": "1mo" }
+      },
+      "layout": { "x": 3, "y": 0, "width": 3, "height": 2 }
+    },
+    {
+      "id": 3,
+      "definition": {
+        "type": "query_value",
+        "title": "Savings Potential (Identified)",
+        "requests": [
+          {
+            "q": "sum:cloudsense.savings.potential{source:cloudsense,$provider}",
+            "aggregator": "sum"
+          }
+        ],
+        "autoscale": true,
+        "precision": 2,
+        "unit": "dollar",
+        "custom_links": [{ "label": "View recommendations", "link": "https://cloudsense.io/recommendations" }]
+      },
+      "layout": { "x": 6, "y": 0, "width": 3, "height": 2 }
+    },
+    {
+      "id": 4,
+      "definition": {
+        "type": "query_value",
+        "title": "Active Anomalies",
+        "requests": [
+          {
+            "q": "sum:cloudsense.cost.anomaly_count{source:cloudsense,$provider}",
+            "aggregator": "max"
+          }
+        ],
+        "autoscale": false,
+        "precision": 0,
+        "time": { "live_span": "1d" },
+        "custom_links": [{ "label": "View anomalies", "link": "https://cloudsense.io/anomalies" }]
+      },
+      "layout": { "x": 9, "y": 0, "width": 3, "height": 2 }
+    },
+    {
+      "id": 5,
+      "definition": {
+        "type": "timeseries",
+        "title": "Daily Cloud Spend — All Providers",
+        "requests": [
+          {
+            "q": "sum:cloudsense.cost.by_provider{provider:aws,source:cloudsense,$service,$region}",
+            "display_type": "bars",
+            "style": { "palette": "orange" },
+            "metadata": [{ "expression": "sum:cloudsense.cost.by_provider{provider:aws,source:cloudsense}", "alias_name": "AWS" }]
+          },
+          {
+            "q": "sum:cloudsense.cost.by_provider{provider:azure,source:cloudsense,$service,$region}",
+            "display_type": "bars",
+            "style": { "palette": "blue" },
+            "metadata": [{ "expression": "sum:cloudsense.cost.by_provider{provider:azure,source:cloudsense}", "alias_name": "Azure" }]
+          },
+          {
+            "q": "sum:cloudsense.cost.by_provider{provider:gcp,source:cloudsense,$service,$region}",
+            "display_type": "bars",
+            "style": { "palette": "green" },
+            "metadata": [{ "expression": "sum:cloudsense.cost.by_provider{provider:gcp,source:cloudsense}", "alias_name": "GCP" }]
+          }
+        ],
+        "yaxis": { "label": "USD", "scale": "linear", "include_zero": true },
+        "events": [{ "q": "tags:type:cost_anomaly source:cloudsense" }],
+        "time": { "live_span": "1mo" }
+      },
+      "layout": { "x": 0, "y": 2, "width": 8, "height": 4 }
+    },
+    {
+      "id": 6,
+      "definition": {
+        "type": "toplist",
+        "title": "Top 10 Services by Cost",
+        "requests": [
+          {
+            "q": "top(sum:cloudsense.cost.by_service{source:cloudsense,$provider,$region} by {service}, 10, 'sum', 'desc')",
+            "style": { "palette": "dog_classic" }
+          }
+        ],
+        "time": { "live_span": "1mo" }
+      },
+      "layout": { "x": 8, "y": 2, "width": 4, "height": 4 }
+    },
+    {
+      "id": 7,
+      "definition": {
+        "type": "timeseries",
+        "title": "Cost Anomalies — Delta ($)",
+        "requests": [
+          {
+            "q": "sum:cloudsense.cost.anomaly_delta{source:cloudsense,$provider,$service}",
+            "display_type": "bars",
+            "style": { "palette": "red" }
+          }
+        ],
+        "yaxis": { "label": "USD delta", "include_zero": true },
+        "time": { "live_span": "1mo" }
+      },
+      "layout": { "x": 0, "y": 6, "width": 6, "height": 3 }
+    },
+    {
+      "id": 8,
+      "definition": {
+        "type": "timeseries",
+        "title": "Savings Potential Trend",
+        "requests": [
+          {
+            "q": "sum:cloudsense.savings.potential{source:cloudsense,$provider} by {agent}",
+            "display_type": "area",
+            "style": { "palette": "green" }
+          }
+        ],
+        "yaxis": { "label": "USD/month", "include_zero": true },
+        "time": { "live_span": "1mo" }
+      },
+      "layout": { "x": 6, "y": 6, "width": 6, "height": 3 }
+    },
+    {
+      "id": 9,
+      "definition": {
+        "type": "note",
+        "content": "**CloudSense FinOps Platform**\n\nMetrics pushed by [CloudSense](https://cloudsense.io) via `cloudsense.cost.*` namespace.\n\nFilters: `$provider` · `$service` · `$region`\n\n[View all recommendations →](https://cloudsense.io/recommendations)",
+        "background_color": "blue",
+        "font_size": "14",
+        "text_align": "left",
+        "vertical_align": "top",
+        "show_tick": false
+      },
+      "layout": { "x": 0, "y": 9, "width": 12, "height": 2 }
+    }
+  ],
+  "layout_type": "ordered",
+  "notify_list": [],
+  "reflow_type": "fixed"
+}
